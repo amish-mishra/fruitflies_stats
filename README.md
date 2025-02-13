@@ -1,5 +1,9 @@
 # Data and Code
-This repository hosts the data, code, and statistical analyses for an experiment on analyzing the effects of gene interactions on the wingscores of fruitflies. The main files are
+This repository hosts the data, code, and statistical analyses for an experiment on analyzing the effects of gene interactions on the wingscores of fruitflies. 
+
+The statistical analyses of the data can be read in the [final output pdf](/fruitflies_stats.pdf)
+
+The main files are
 - dataset in `.xlsx` format
 - `R` code in `.rmd` file to reproduce the statistical analyses from the dataset
 - the output pdf showing the relevant `R` code chunks with the output and interpretations.
