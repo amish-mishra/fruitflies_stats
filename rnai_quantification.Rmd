@@ -1,0 +1,372 @@
+---
+title: "Supplemental Material 4: RNAi Data Analysis Report"
+# author: "Amish Mishra"
+date: "May 30, 2025"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# library(DescTools)
+
+# # Set global theme with Arial font and 10pt font size - not necessary
+# theme_set(
+#   theme_gray(base_family = "Arial", base_size = 10) +
+#     theme(text = element_text(family = "Arial", size = 10))
+# )
+```
+
+This file performs the statistical analyses comparing the percentage of wing hair misalignments (termed "score") for varying temperatures of various genotypes.
+
+# Data description
+
+The dataset columns have the following descriptions.
+
+| Column Name        | Description                                      |
+|--------------------|--------------------------------------------------|
+| `sample_ID`         | Unique identifier for each sample                   |
+| `genotype`           | Genotype classification                          |
+| `temp`               | Temperature (18, 22, 25, 29) measured in degrees celsius              |
+| `score`           | Percentage of misaligned hairs in a 50 hair region                       |
+
+# Genotype description
+
+| Genotype             | Description                         |
+|----------------------|------------------------------------|
+| `bx-Gal4`            |        bx-Gal4                |
+| `lacZ`               |    UAS-lacZ     |
+| `sqh-RNAi`           |    UAS-sqh-RNAi   |
+| `zip-RNAi`           |  UAS-zip-RNAi |
+| `nub-Gal4`           |  nub-Gal4   |
+
+
+
+
+
+<!-- |Code Category Name| Code Variable Name | Biological Variable Name | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |   `new_gene`     | `zip/+`            | $zip^1/+$                | -->
+<!-- |                  | `sqh/+`            | $sqh^{AX3}/+$            | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |                  | `+/+`              | $Gli^+/Gli^+$                   | -->
+<!-- |                  | `dv5/+`            | $Gli^{dv5}/+$            | -->
+<!-- |   `dv5_base`     | `dv5/RAR`          | $Gli^{dv5}/Gli^{RAR77}$  | -->
+<!-- |                  | `dv5/dv5`          | $Gli^{dv5}/Gli^{dv5}$    | -->
+
+
+# Load necessary libraries and do setup
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(broom)
+library(FSA) # Perform Dunn's test with Bonferroni adjustment
+library(latex2exp)
+```
+
+# Get Bx-Gal4 data ready
+
+## Load and clean data
+```{r, warning=FALSE}
+raw_bx_data <- read_excel("data/RNAiscores.xlsx", sheet = 1)
+
+# Reorder and set Genotype factor
+raw_bx_data <- raw_bx_data %>%
+  mutate(genotype = factor(genotype, levels = c('lacZ', 'sqh-RNAi', 'zip-RNAi')),
+         temp = factor(temp))
+
+# Print out summary of the data
+str(raw_bx_data)
+head(raw_bx_data)
+summary(raw_bx_data)
+```
+# Explore
+This section gives some summary statistics and initial visualizations of the dataset.
+
+## Means and Standard deviations of Score
+```{r}
+summarized_bx_data <- raw_bx_data %>%
+  group_by(temp, genotype) %>%
+  summarize(mean_score = mean(score, na.rm = TRUE),
+            sd_score = sd(score, na.rm = TRUE),
+            median_score = median(score, na.rm = TRUE))
+
+# Print out summary of the data
+head(summarized_bx_data, n=10)
+```
+
+
+## Plots of Score distributions
+
+<!-- ```{r} -->
+<!-- # Boxplot -->
+<!-- p <- ggplot(raw_bx_data, aes(x = temp, y = score, fill = genotype)) + -->
+<!--   # geom_boxplot(position = position_dodge(width = 1.0), width = 0.8, aes(fill = genotype),  -->
+<!--                # color = "black") + -->
+<!--   geom_boxplot() -->
+<!--   # stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black", -->
+<!--                # position = position_dodge(width = 1.0)) + -->
+<!--   # scale_fill_manual(values = c("white", "lightgrey", "darkgrey")) + -->
+<!--   labs(title = "Box Plots of Score by Temperature and Genotype", x = "Temp", -->
+<!--        y = "Score") + -->
+<!--   # geom_jitter(position = position_jitter(width = 0.05), alpha = 0.6) + -->
+<!--   theme_minimal() -->
+<!-- # Save the plot -->
+<!-- # ggsave("figures/hair_scores_boxplots_scaled.tiff", plot = p, width = 10, height = 5, dpi = 300) -->
+<!-- p -->
+<!-- ``` -->
+
+```{r, fig.height=3, fig.width=7}
+# Custom labels for genotype fill
+custom_labels <- c(
+  "bx-Gal4" = TeX("bx-Gal4"),
+  "lacZ" = TeX("UAS-lacZ"),
+  "sqh-RNAi" = TeX("UAS-sqh-RNAi"),
+  "zip-RNAi" = TeX("UAS-zip-RNAi"),
+  "nub-Gal4" = TeX("nub-Gal4")
+)
+
+# Set seed for reproducibility
+set.seed(2)
+
+# Plot
+p <- ggplot(raw_bx_data, aes(x = temp, y = score, fill = genotype)) +
+  geom_jitter(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+              alpha = 0.5, shape = 21, color = "black") +  # points with fill
+  stat_summary(fun = median, geom = "crossbar", width = 0.7,
+               color = "black",
+               position = position_dodge(width = 0.8)) +  # median line
+  labs(title = "Scores by Temperature and Genotype", x = "Temp", y = "Score", fill = "Genotype") +
+  scale_fill_discrete(labels = custom_labels) +
+  theme_minimal()
+  # theme(legend.position = c(1, 1), legend.justification = c(1.75, 1),
+  #       legend.background = element_rect(fill = "white", color = "black", linewidth = 0.1)
+  #     ) 
+# Optional: Save the plot
+# ggsave("figures/bx_temp_and_genotype.tiff", plot = p, width = 7, height = 3, dpi = 300)
+# ggsave("figures/bx_temp_and_genotype.svg", plot = p, device="svg", width = 7, height = 3, dpi = 300)
+
+p
+```
+
+
+```{r}
+ggplot(raw_bx_data, aes(x = score)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_grid(temp ~ genotype) +
+  labs(title = "Histogram of Scores by Temperature and Genotype",
+       x = "Score", y = "Count") +
+  theme_minimal()
+```
+
+The plot above shows the distribution of the scores by temperature in each genotype category. We investigate if these differences are statistically significant in the next section.
+
+# Analysis
+
+ANOVA assumptions are violated (residuals of ANOVA model are not normally distributed). So, we use non-parametric approaches to compare medians.
+
+## Non-parametric Methods: 18 temp
+
+For the 18 temp samples, we use the Kruskal-Wallis test to compare medians followed by a post-hoc test for pairwise differences.
+
+```{r, fig.height=4, fig.width=5}
+# Subset data for temp == "18"
+data_18temp <- raw_bx_data %>% filter(temp == "18")
+
+# Perform Kruskal-Wallis test
+kruskal_result <- kruskal.test(score ~ genotype, data = data_18temp)
+kruskal_result
+```
+```{r}
+dunn_result <- dunnTest(score ~ genotype, data = data_18temp, method = "bonferroni")
+dunn_result
+```
+
+## Non-parametric Methods: 22 temp
+
+For the 22 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_22temp <- raw_bx_data %>% filter(temp == "22")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_22temp, exact=FALSE)
+wilcox_result
+```
+## Non-parametric Methods: 25 temp
+
+For the 25 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_25temp <- raw_bx_data %>% filter(temp == "25")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_25temp, exact=FALSE)
+wilcox_result
+```
+## Non-parametric Methods: 29 temp
+
+For the 29 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_29temp <- raw_bx_data %>% filter(temp == "29")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_29temp, exact=FALSE)
+wilcox_result
+```
+
+The non-parametric analyses show that all pairings of genotypes within a given temperature have statistically different median scores.
+
+
+# Get nub-Gal4 data ready
+
+## Load and clean data
+```{r, warning=FALSE}
+raw_nub_data <- read_excel("data/RNAiscores.xlsx", sheet = 2)
+
+# Reorder and set Genotype factor
+raw_nub_data <- raw_nub_data %>%
+  mutate(genotype = factor(genotype, levels = c('lacZ', 'sqh-RNAi', 'zip-RNAi')),
+         temp = factor(temp))
+
+# Print out summary of the data
+str(raw_nub_data)
+head(raw_nub_data)
+summary(raw_nub_data)
+```
+# Explore
+This section gives some summary statistics and initial visualizations of the dataset.
+
+## Means and Standard deviations of Score
+```{r}
+summarized_nub_data <- raw_nub_data %>%
+  group_by(temp, genotype) %>%
+  summarize(mean_score = mean(score, na.rm = TRUE),
+            sd_score = sd(score, na.rm = TRUE),
+            median_score = median(score, na.rm = TRUE))
+
+# Print out summary of the data
+str(summarized_nub_data)
+head(summarized_nub_data, n=10)
+summary(summarized_nub_data)
+```
+
+
+## Plots of Score distributions
+
+<!-- ```{r} -->
+<!-- # Boxplot -->
+<!-- p <- ggplot(raw_nub_data, aes(x = temp, y = score, fill = genotype)) + -->
+<!--   # geom_boxplot(position = position_dodge(width = 1.0), width = 0.8, aes(fill = genotype),  -->
+<!--                # color = "black") + -->
+<!--   geom_boxplot() -->
+<!--   # stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black", -->
+<!--                # position = position_dodge(width = 1.0)) + -->
+<!--   # scale_fill_manual(values = c("white", "lightgrey", "darkgrey")) + -->
+<!--   labs(title = "Box Plots of Score by Temperature and Genotype", x = "Temp", -->
+<!--        y = "Score") + -->
+<!--   # geom_jitter(position = position_jitter(width = 0.05), alpha = 0.6) + -->
+<!--   theme_minimal() -->
+<!-- # Save the plot -->
+<!-- # ggsave("figures/hair_scores_boxplots_scaled.tiff", plot = p, width = 10, height = 5, dpi = 300) -->
+<!-- p -->
+<!-- ``` -->
+
+```{r, fig.height=3, fig.width=7}
+# Plot
+p <- ggplot(raw_nub_data, aes(x = temp, y = score, fill = genotype)) +
+  geom_jitter(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.8),
+              alpha = 0.5, shape = 21, color = "black") +  # points with fill
+  stat_summary(fun = median, geom = "crossbar", width = 0.7,
+               color = "black",
+               position = position_dodge(width = 0.8)) +  # median line
+  labs(title = "Scores by Temperature and Genotype", x = "Temp", y = "Score", fill = "Genotype") +
+  scale_fill_discrete(labels = custom_labels) +
+  theme_minimal()
+  # theme(
+  #   legend.position = c(1, 1),
+  #   legend.justification = c(4, 1),
+  #   legend.background = element_rect(fill = "white", color = "black", linewidth = 0.1)
+  # )
+
+# Optional: Save the plot
+# ggsave("figures/nub_temp_and_genotype.tiff", plot = p, width = 7, height = 3, dpi = 300)
+# ggsave("figures/nub_temp_and_genotype.svg", plot = p, device="svg", width = 7, height = 3, dpi = 300)
+
+p
+```
+
+
+```{r}
+ggplot(raw_nub_data, aes(x = score)) +
+  geom_histogram(binwidth = 1, fill = "steelblue", color = "black") +
+  facet_grid(temp ~ genotype) +
+  labs(title = "Histogram of Scores by Temperature and Genotype",
+       x = "Score", y = "Count") +
+  theme_minimal()
+```
+
+The plot above shows the distribution of the scores by temperature in each genotype category. We investigate if these differences are statistically significant in the next section.
+
+# Analysis
+
+ANOVA assumptions are violated (residuals of ANOVA model are not normally distributed). So, we use non-parametric approaches to compare medians.
+
+## Non-parametric Methods: 18 temp
+
+For the 18 temp samples, we use the Kruskall-Wallis test to compare medians followed by a post-hoc test for pairwise differences.
+
+```{r, fig.height=4, fig.width=5}
+# Subset data for temp == "18"
+data_18temp <- raw_nub_data %>% filter(temp == "18")
+
+# Perform Kruskal-Wallis test
+kruskal_result <- kruskal.test(score ~ genotype, data = data_18temp)
+kruskal_result
+```
+```{r}
+dunn_result <- dunnTest(score ~ genotype, data = data_18temp, method = "bonferroni")
+dunn_result
+```
+
+## Non-parametric Methods: 22 temp
+
+For the 22 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_22temp <- raw_nub_data %>% filter(temp == "22")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_22temp, exact=FALSE)
+wilcox_result
+```
+## Non-parametric Methods: 25 temp
+
+For the 25 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_25temp <- raw_nub_data %>% filter(temp == "25")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_25temp, exact=FALSE)
+wilcox_result
+```
+## Non-parametric Methods: 29 temp
+
+For the 29 temp samples, we use the Mann-Whitney U test to compare medians.
+```{r}
+# Subset only the two temp levels
+data_29temp <- raw_nub_data %>% filter(temp == "29")
+
+# Mann-Whitney U test (a.k.a. Wilcoxon rank-sum test)
+wilcox_result <- wilcox.test(score ~ genotype, data = data_29temp, exact=FALSE)
+wilcox_result
+```
+
+The non-parametric analyses show that all pairings of genotypes within a given temperature have statistically different median scores. The only exception at the 0.05 level of significance is the comparison of `lacZ - zip-RNAi` for 18 temp which had a p-value of about 0.088.
+
+
+
+
+

@@ -1,0 +1,232 @@
+---
+title: "Supplemental Material 6: Dlg Data Analysis Report"
+# author: "Amish Mishra"
+date: "June 2, 2025"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# library(DescTools)
+
+# # Set global theme with Arial font and 10pt font size - not necessary
+# theme_set(
+#   theme_gray(base_family = "Arial", base_size = 10) +
+#     theme(text = element_text(family = "Arial", size = 10))
+# )
+```
+
+This file performs the statistical analyses on the Dlg pixel intensity of the anterior-posterior and proximodistal cell boundaries for various genotypes. In this document, we group by fly number to compute one `Average_AP_PD` value for the fly for each genotype (termed "score").
+
+# Data description
+
+The dataset columns have the following descriptions.
+
+| Column Name        | Description                                      |
+|--------------------|--------------------------------------------------|
+| `Fly_number`         | Unique identifier for each fly                   |
+| `Genotype`           | Genotype classification                          |
+| `Cell_number`        | Cell number within each fly (5 cells per fly)              |
+| `Anterior`           | Anterior cell boundary average pixel intensity value                        |
+| `Proximodistal1`     | First proximodistal cell boundary average pixel intensity value                  |
+| `A/PD1`              | Anterior divided by proximodistal measurement (1st)     |
+| `Posterior`          | Posterior cell boundary average pixel intensity value                       |
+| `Proximodistal 2`    | Second proximodistal cell boundary average pixel intensity value                 |
+| `P/PD2`              | Posterior divided by proximodistal measurement (2nd)    |
+| `Average_AP_PD`      | Average of A/PD1 and P/PD2 (single value for each cell)                      |
+
+The key columns are the `Genotype` and the `Average_AP_PD`. The `Average_AP_PD` is a single value for each cell that signifies the ratio of the pixel intensity of the anterior-posterior cell boundaries relative to proximodistal cell boundaries.
+
+# Genotype description
+
+| Genotype         | Description                                 |
+| ---------------- | ------------------------------------------- |
+| `+_+`            | wildtype                                 |
+| `dv5_dv5`        | $\textit{Gli}^{dv5}/\textit{Gli}^{dv5}$  |
+| `BxGal4_+`       | bx-Gal4$>$lacZ                           |
+| `BxGal4_GliRNAi` | bx-Gal4$>$Gli-RNAi                       |
+
+
+
+
+
+<!-- |Code Category Name| Code Variable Name | Biological Variable Name | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |   `new_gene`     | `zip/+`            | $zip^1/+$                | -->
+<!-- |                  | `sqh/+`            | $sqh^{AX3}/+$            | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |                  | `+/+`              | $Gli^+/Gli^+$                   | -->
+<!-- |                  | `dv5/+`            | $Gli^{dv5}/+$            | -->
+<!-- |   `dv5_base`     | `dv5/RAR`          | $Gli^{dv5}/Gli^{RAR77}$  | -->
+<!-- |                  | `dv5/dv5`          | $Gli^{dv5}/Gli^{dv5}$    | -->
+
+
+# Load necessary libraries and do setup
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(broom)
+library(latex2exp)
+```
+
+# Get data ready
+
+## Load and clean data
+```{r, warning=FALSE}
+raw_dlg_quant_data <- read_excel("data/dlg_quantification.xlsx")
+
+# Reorder and set Genotype factor
+raw_dlg_quant_data <- raw_dlg_quant_data %>%
+  mutate(Genotype = factor(Genotype, levels = c('+_+', 'dv5_dv5', 'BxGal4_+', 'BxGal4_GliRNAi')))
+
+# Print out summary of the data
+str(raw_dlg_quant_data)
+head(raw_dlg_quant_data)
+summary(raw_dlg_quant_data)
+```
+
+```{r}
+dlg_quant_data <- raw_dlg_quant_data %>%
+  group_by(Fly_number, Genotype) %>%
+  summarize(score = mean(Average_AP_PD))
+
+# Print out summary of the data
+head(dlg_quant_data)
+```
+
+Notice that for the 5 randomly sampled cells from the wing of the same fly, we compute the mean of their Average AP/PD values and call that the `score` for that fly. This should give a more accurate measurement of the change in the cells for that fly.
+
+At this point, we work with `dlg_quant_data` that contains the following columns for the analysis:
+
+| Column name             | Description                                                                 |
+|----------------------|-----------------------------------------------------------------------------|
+| `Fly_number`         | Unique identifier for each fly                   |
+| `Genotype`           | Genotype classification                          |
+| `score`              | Mean of the Average AP/PD values for the 5 cells sampled from the same fly wing. This number is the single value that represents the AP/PD ratio of the "typical" cell in a wing of that fly.     |
+
+\newpage
+
+# Explore
+This section gives some summary statistics and initial visualizations of the dataset.
+
+## Means and Standard deviations of Score
+```{r}
+summary_cell_val_data <- dlg_quant_data %>%
+  group_by(Genotype) %>%
+  summarize(mean_cell_val = mean(score, na.rm = TRUE),
+            sd_cell_val = sd(score, na.rm = TRUE)
+)
+
+summary_cell_val_data
+```
+
+## Plots of Score distributions
+
+<!-- The dashed lines in the histograms are the medians for the respective distribution. -->
+
+<!-- ```{r fig.height=2, fig.width=8} -->
+<!-- # Histogram with two factors -->
+<!-- ggplot(dlg_quant_data, aes(x = score)) + -->
+<!--   geom_histogram(binwidth = 0.2, alpha = 0.7, position = "dodge") + -->
+<!--   facet_wrap( ~ Genotype, nrow = 1, ncol = 5) + -->
+<!--   # theme_minimal() + -->
+<!--   labs(title = "Histogram of Score values for each genotype", -->
+<!--        x = "Score", -->
+<!--        y = "Count") + -->
+<!--   geom_vline(data = summary_cell_val_data, aes(xintercept = mean_cell_val),  -->
+<!--              color = "blue", linetype = "dashed", linewidth = 1) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Boxplot -->
+<!-- p <- ggplot(dlg_quant_data, aes(x = Genotype, y = score)) + -->
+<!--   geom_boxplot(position = position_dodge(width = 1.0), width = 0.8) + -->
+<!--   stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black",  -->
+<!--                  position = position_dodge(width = 1.0)) + -->
+<!--   scale_fill_manual(values = c("white","lightgrey","darkgrey")) + -->
+<!--   labs(title = "Box Plots by Genotype", x = NULL, -->
+<!--        y = "Score", fill = NULL) + -->
+<!--   geom_jitter(width = 0.05, alpha = 0.6) +  # add points -->
+<!--   theme_minimal() -->
+<!-- # Save the plot -->
+<!-- # ggsave("figures/hair_scores_boxplots_scaled.tiff", plot = p, width = 10, height = 5, dpi = 300) -->
+<!-- p -->
+<!-- ``` -->
+
+```{r, fig.height=3.1, fig.width=2.5}
+custom_labels <- c(
+  "+_+" = TeX("+/+"),
+  "dv5_dv5" = TeX("$\\textit{Gli}^{dv5}/\\textit{Gli}^{dv5}$"),
+  "BxGal4_+" = TeX("\\textit{bx}-Gal4$>$\\textit{lacZ}"),
+  "BxGal4_GliRNAi" = TeX("\\textit{bx}-Gal4$>$\\textit{Gli}-RNAi")
+)
+
+set.seed(2)  # Set seed for the jitter to be fixed
+p <- ggplot(dlg_quant_data, aes(x = Genotype, y = score)) +
+  geom_jitter(width = 0.05, alpha = 0.6) +  # jittered points
+  stat_summary(fun = mean, geom = "crossbar", width=0.5, color = "black", 
+               position = position_dodge(width = 1.0)) +  # mean marker
+  labs(title = "Scores by Genotype with Mean", x = NULL, y = "Dlg AP/DV") +
+  geom_hline(yintercept = 1, linetype = "dotted", color = "black") +  # dotted line at y = 1
+  scale_x_discrete(labels = custom_labels) +
+  scale_y_continuous(
+    breaks = seq(0.0, 2.5, by = 0.5), # Setting breaks for every unit
+    labels = seq(0.0, 2.5, by = 0.5),  # Corresponding labels for the breaks
+    minor_breaks = NULL,
+    limits = c(0, 2.5)
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+# Save the plot
+# ggsave("figures/dlg_scores.tiff", plot = p, width = 7, height = 3, dpi = 300)
+# ggsave("figures/dlg_scores.svg", plot = p, device="svg", width = 2.5, height = 3.1, dpi = 300)
+p
+```
+
+The plot above shows the distribution of the scores in each genotype category. The black horizontal line shows the mean score for that genotype. The plot above shows that there appears to be a difference in the means for each genotype's score values. We investigate if these differences are statistically significant in the next section using an ANOVA test.
+
+# Analysis
+
+## Check one-way ANOVA assumptions
+We begin by first checking the ANOVA model assumptions. The plots and analyses below show that the residuals of the ANOVA model are roughly normally distributed (QQ-plot follows a straight-line pattern) and the variances of the score values for each genotype are roughly equal. Finally, since the cells were sampled randomly from different fruitflies, the samples in each genotype group are independent of the samples from the other genotype groups and mean of all cells from one fruitfly is independent from the mean of the cells from the other fruitflies within the same genotype group.
+```{r, fig.height=4, fig.width=5}
+anova_model <- aov(score ~ Genotype, data = dlg_quant_data)
+
+#create Q-Q plot to compare this dataset to a theoretical normal distribution 
+qqnorm(anova_model$residuals)
+qqline(anova_model$residuals)
+
+bartlett.test(score ~ Genotype, data = dlg_quant_data)
+```
+
+## The one-way ANOVA model analysis
+```{r}
+summary(anova_model)
+post_hoc_test <- TukeyHSD(anova_model)
+post_hoc_test
+# Convert Tukey result to a tidy data frame
+tukey_df <- tidy(post_hoc_test)
+# Plot with rotated x-axis labels
+ggplot(tukey_df, aes(x = contrast, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "95% family-wise confidence level", y = "Difference in Means", x = "Comparison")
+```
+
+The one-way ANOVA model shows that there is a statistically significant difference between the mean of the score values across the 4 genotypes. A post-hoc analysis using Tukey's HSD reveals the pairs that show the most significant differences.
+
+All pairings show significant differences except for the comparisons `BxGal4_+` to `+_+` (p = 0.986) and `dv5_dv5` to `BxGal4_GliRNAi` (p = 0.702).
+
+The comparisons of interest are as follows:
+
+- Genotype `+_+` to `dv5_dv5` shows that the score values drop by 0.65 which is statistically significant. That means the AP:PD ratio goes from being 1.90 to 1.25 when looking at cells from the `+_+` fly wings to the `dv5_dv5` fly wings.
+
+- Genotype `BxGal4_+` to `BxGal4_GliRNAi` shows that the score values drop by 0.74 which is statistically significant. That means the AP:PD ratio goes from being 1.87 to 1.13 when looking at cells from the `BxGal4_+` fly wings to the `BxGal4_GliRNAi` fly wings.
+
+
+
+

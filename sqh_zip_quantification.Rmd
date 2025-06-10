@@ -1,0 +1,376 @@
+---
+title: "Supplemental Material 7: Sqh and Zip Data Analysis Report"
+# author: "Amish Mishra"
+date: "June 2, 2025"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# library(DescTools)
+
+# # Set global theme with Arial font and 10pt font size - not necessary
+# theme_set(
+#   theme_gray(base_family = "Arial", base_size = 10) +
+#     theme(text = element_text(family = "Arial", size = 10))
+# )
+```
+
+This file performs the statistical analyses on the pixel intensity of sqh and zip flies cells. In this document, we group by fly number to compute one `Ratio_35TOperiphery` value (termed "score") for the fly for each genotype.
+
+# Data description
+
+The dataset columns have the following descriptions.
+
+| Column Name           | Description                                                                 |
+|-----------------------|-----------------------------------------------------------------------------|
+| `Fly_number`          | Unique identifier for each fly                                              |
+| `Type`                | MRLC (i.e. Sqh) or ZIP             |
+| `Genotype`            | Genotype classification                                                     |
+| `Cell_number`         | Cell number sampled                                                |
+| `35by35_area`         | Area (in pixels) of the 35x35 pixel region centered on the cell             |
+| `35by35_mean`         | Mean pixel intensity within the 35x35 region                                |
+| `45by45_area`         | Area (in pixels) of the 45x45 pixel region centered on the cell             |
+| `45by45_mean`         | Mean pixel intensity within the 45x45 region                                |
+| `35A*M`               | Product of area and mean intensity for the 35x35 region                     |
+| `45A*M`               | Product of area and mean intensity for the 45x45 region                     |
+| `periphery_mean`      | Mean pixel intensity in the peripheral region around the cell               |
+| `Ratio_35TOperiphery` | Ratio of the 35by35_mean to the periphery_mean, indicating relative intensity |
+
+
+The key columns are the `Genotype` and the `Ratio_35TOperiphery`. The `Ratio_35TOperiphery` is a single value for each cell that signifies the ratio of the pixel intensity of the inside of the cell to it's periphery.
+
+# Genotype description
+
+| Genotype                 | Description                                                             |
+|--------------------------|-------------------------------------------------------------------------|
+| MRLC_+_+                 | Sqh-GFP/+                                                               |
+| MRLC_dv5_dv5            | $\textit{Gli}^{dv5}/\textit{Gli}^{dv5};$ Sqh-GFP/+                     |
+| MRLC_BxGal4_+           | Bx-Gal4/+; UAS-lacZ/+                                                   |
+| MRLC_BxGal4_GliRNAi     | Bx-Gal4/+; UAS-Gli-RNAi/+                                               |
+| ZIPgfp_+_+              | Zip-GFP/+                                                               |
+| ZIPgfp_dv5_dv5          | Zip-GFP, $\textit{Gli}^{dv5}/\textit{Gli}^{dv5}$                       |
+
+
+
+
+
+
+<!-- |Code Category Name| Code Variable Name | Biological Variable Name | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |   `new_gene`     | `zip/+`            | $zip^1/+$                | -->
+<!-- |                  | `sqh/+`            | $sqh^{AX3}/+$            | -->
+<!-- |------------------|--------------------|--------------------------| -->
+<!-- |                  | `+/+`              | $Gli^+/Gli^+$                   | -->
+<!-- |                  | `dv5/+`            | $Gli^{dv5}/+$            | -->
+<!-- |   `dv5_base`     | `dv5/RAR`          | $Gli^{dv5}/Gli^{RAR77}$  | -->
+<!-- |                  | `dv5/dv5`          | $Gli^{dv5}/Gli^{dv5}$    | -->
+
+
+# Load necessary libraries and do setup
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggplot2)
+library(broom)
+library(latex2exp)
+```
+
+# Get data ready
+
+## Load and clean data
+```{r, warning=FALSE}
+raw_sqh_zip_quant_data <- read_excel("data/sqh_zip_quantification.xlsx")
+
+# Reorder and set Genotype factor
+raw_sqh_zip_quant_data <- raw_sqh_zip_quant_data %>%
+mutate(Genotype = factor(Genotype, levels = c('MRLC_+_+', 'MRLC_dv5_dv5', 
+                                              'MRLC_BxGal4_+', 'MRLC_BxGal4_GliRNAi',
+                                              'ZIPgfp_+_+', 'ZIPgfp_dv5_dv5')))
+
+# Print out summary of the data
+str(raw_sqh_zip_quant_data)
+head(raw_sqh_zip_quant_data)
+summary(raw_sqh_zip_quant_data)
+```
+
+## Filter to just MRLC (sqh)
+```{r}
+sqh_quant_data <- raw_sqh_zip_quant_data %>%
+  filter(Type == "MRLC") %>%
+  mutate(Genotype = droplevels(Genotype)) %>%
+  group_by(Fly_number, Genotype) %>%
+  summarize(score = mean(Ratio_35TOperiphery))
+
+# Print out summary of the data
+head(sqh_quant_data)
+```
+
+## Filter to just ZIP (zip)
+```{r}
+zip_quant_data <- raw_sqh_zip_quant_data %>%
+  filter(Type == "ZIP") %>%
+  mutate(Genotype = droplevels(Genotype)) %>%
+  group_by(Fly_number, Genotype) %>%
+  summarize(score = mean(Ratio_35TOperiphery))
+
+# Print out summary of the data
+str(zip_quant_data)
+head(zip_quant_data)
+summary(zip_quant_data)
+```
+
+Notice that for the 5 randomly sampled cells from the wing of the same fly, we compute the mean of their `Ratio_35TOperiphery` values and call that the `score` for that fly. This should give a more accurate measurement of the change in the cells for that fly.
+
+At this point, we work with `BLANK_quant_data` (where `BLANK` is either `sqh` or `zip`) that contains the following columns for the analysis:
+
+| Column name             | Description                                                                 |
+|----------------------|-----------------------------------------------------------------------------|
+| `Fly_number`         | Unique identifier for each fly                   |
+| `Genotype`           | Genotype classification                          |
+| `score`               | Mean of the `Ratio_35TOperiphery` values for the 5 cells sampled from the same fly wing. This number is the single value that represents the `Ratio_35TOperiphery` of the "typical" cell in a wing of that fly.     |
+
+\newpage
+
+# MRLC (sqh) Analysis
+
+This section just shows the MRLC analysis.
+
+## Explore
+This subsection gives some summary statistics and initial visualizations of the dataset.
+
+### Means and Standard deviations of Score
+```{r}
+summary_cell_val_data <- sqh_quant_data %>%
+  group_by(Genotype) %>%
+  summarize(mean_cell_val = mean(score, na.rm = TRUE),
+            sd_cell_val = sd(score, na.rm = TRUE)
+)
+
+summary_cell_val_data
+```
+
+### Plots of Score distributions
+
+<!-- The dashed lines in the histograms are the medians for the respective distribution. -->
+
+<!-- ```{r fig.height=2, fig.width=8} -->
+<!-- # Histogram with two factors -->
+<!-- ggplot(dlg_quant_data, aes(x = score)) + -->
+<!--   geom_histogram(binwidth = 0.2, alpha = 0.7, position = "dodge") + -->
+<!--   facet_wrap( ~ Genotype, nrow = 1, ncol = 5) + -->
+<!--   # theme_minimal() + -->
+<!--   labs(title = "Histogram of Score values for each genotype", -->
+<!--        x = "Score", -->
+<!--        y = "Count") + -->
+<!--   geom_vline(data = summary_cell_val_data, aes(xintercept = mean_cell_val),  -->
+<!--              color = "blue", linetype = "dashed", linewidth = 1) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Boxplot -->
+<!-- p <- ggplot(sqh_quant_data, aes(x = Genotype, y = score)) + -->
+<!--   geom_boxplot(position = position_dodge(width = 1.0), width = 0.8) + -->
+<!--   stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black", -->
+<!--                  position = position_dodge(width = 1.0)) + -->
+<!--   scale_fill_manual(values = c("white","lightgrey","darkgrey")) + -->
+<!--   labs(title = "Box Plots by Genotype", x = NULL, -->
+<!--        y = "Score", fill = NULL) + -->
+<!--   geom_jitter(width = 0.05, alpha = 0.6) +  # add points -->
+<!--   theme_minimal() -->
+<!-- # Save the plot -->
+<!-- # ggsave("figures/hair_scores_boxplots_scaled.tiff", plot = p, width = 10, height = 5, dpi = 300) -->
+<!-- p -->
+<!-- ``` -->
+
+```{r, fig.height=3.1, fig.width=2.5}
+# Custom labels
+custom_labels <- c(
+  "MRLC_+_+" = TeX("+/+"),
+  "MRLC_dv5_dv5" = TeX("$\\textit{Gli}^{dv5}/\\textit{Gli}^{dv5}"),
+  "MRLC_BxGal4_+" = TeX("\\textit{bx}-Gal4$>$\\textit{lacZ}"),
+  "MRLC_BxGal4_GliRNAi" = TeX("\\textit{bx}-Gal4$>$\\textit{Gli}-RNAi")
+)
+
+# Set seed for reproducibility
+set.seed(2)
+
+# Plot
+p <- ggplot(sqh_quant_data, aes(x = Genotype, y = score)) +
+  geom_jitter(width = 0.05, alpha = 0.6) +  # jittered points
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black",
+               position = position_dodge(width = 1.0)) +  # mean marker
+  labs(title = "Sqh Scores by Genotype", x = NULL, y = "Sqh center/periphery") +
+  geom_hline(yintercept = 1, linetype = "dotted", color = "black") +  # dotted line at y = 1
+  scale_x_discrete(labels = custom_labels) +
+  scale_y_continuous(
+    breaks = seq(0.0, 1.5, by = 0.5), # Setting breaks for every unit
+    labels = seq(0.0, 1.5, by = 0.5),  # Corresponding labels for the breaks
+    minor_breaks = NULL,
+    limits = c(0.0, 1.5)
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# Optional: Save the plot
+# ggsave("figures/sqh_scores.tiff", plot = p, width = 7, height = 3, dpi = 300)
+# ggsave("figures/sqh_scores.svg", plot = p, device="svg", width = 2.5, height = 3.1, dpi = 300)
+
+p
+```
+
+The plot above shows the distribution of the scores in each genotype category. The black points show the actual values and X shows the mean score for that genotype. The plot above shows that there appears to be a difference in the means for each genotype's score values. We investigate if these differences are statistically significant in the next section using an ANOVA test.
+
+## Analysis
+
+### Check one-way ANOVA assumptions
+We begin by first checking the ANOVA model assumptions. The plots and analyses below show that the residuals of the ANOVA model are roughly normally distributed (QQ-plot follows a straight-line pattern) and the variances of the score values for each genotype are roughly equal. Finally, since the cells were sampled randomly from different fruitflies, the samples in each genotype group are independent of the samples from the other genotype groups and mean of all cells from one fruitfly is independent from the mean of the cells from the other fruitflies within the same genotype group.
+```{r, fig.height=4, fig.width=5}
+anova_model <- aov(score ~ Genotype, data = sqh_quant_data)
+
+#create Q-Q plot to compare this dataset to a theoretical normal distribution 
+qqnorm(anova_model$residuals)
+qqline(anova_model$residuals)
+
+bartlett.test(score ~ Genotype, data = sqh_quant_data)
+```
+### The one-way ANOVA model analysis
+```{r}
+summary(anova_model)
+post_hoc_test <- TukeyHSD(anova_model)
+post_hoc_test
+# Convert Tukey result to a tidy data frame
+tukey_df <- tidy(post_hoc_test)
+# Plot with rotated x-axis labels
+ggplot(tukey_df, aes(x = contrast, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "95% family-wise confidence level", y = "Difference in Means", x = "Comparison")
+```
+
+The one-way ANOVA model shows that there is a statistically significant difference between the mean of the score values across the 4 genotypes. A post-hoc analysis using Tukey's HSD reveals the pairs that show the most significant differences.
+
+All pairings show significant differences except for the comparisons `MRLC_BxGal4_+` to `MRLC_+_+` (p = 0.194) and `MRLC_BxGal4_GliRNAi` to `MRLC_dv5_dv5` (p = 0.893).
+
+The comparisons of interest are as follows:
+
+- Genotype `MRLC_dv5_dv5` to `MRLC_+_+` shows that the score values drop by 0.198 which is statistically significant.
+
+- Genotype `MRLC_BxGal4_GliRNAi` to `MRLC_BxGal4_+` shows that the score values drop by 0.238 which is statistically significant.
+
+\newpage
+
+# ZIP (zip) Analysis
+
+This section just shows the ZIP analysis.
+
+## Explore
+This subsection gives some summary statistics and initial visualizations of the dataset.
+
+### Means and Standard deviations of Score
+```{r}
+summary_cell_val_data <- zip_quant_data %>%
+  group_by(Genotype) %>%
+  summarize(mean_cell_val = mean(score, na.rm = TRUE),
+            sd_cell_val = sd(score, na.rm = TRUE)
+)
+
+summary_cell_val_data
+```
+
+### Plots of Score distributions
+
+<!-- The dashed lines in the histograms are the medians for the respective distribution. -->
+
+<!-- ```{r fig.height=2, fig.width=8} -->
+<!-- # Histogram with two factors -->
+<!-- ggplot(dlg_quant_data, aes(x = score)) + -->
+<!--   geom_histogram(binwidth = 0.2, alpha = 0.7, position = "dodge") + -->
+<!--   facet_wrap( ~ Genotype, nrow = 1, ncol = 5) + -->
+<!--   # theme_minimal() + -->
+<!--   labs(title = "Histogram of Score values for each genotype", -->
+<!--        x = "Score", -->
+<!--        y = "Count") + -->
+<!--   geom_vline(data = summary_cell_val_data, aes(xintercept = mean_cell_val),  -->
+<!--              color = "blue", linetype = "dashed", linewidth = 1) -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- # Boxplot -->
+<!-- p <- ggplot(zip_quant_data, aes(x = Genotype, y = score)) + -->
+<!--   geom_boxplot(position = position_dodge(width = 1.0), width = 0.8) + -->
+<!--   stat_summary(fun = mean, geom = "point", shape = 4, size = 3, color = "black",  -->
+<!--                  position = position_dodge(width = 1.0)) + -->
+<!--   scale_fill_manual(values = c("white","lightgrey","darkgrey")) + -->
+<!--   labs(title = "Box Plots by Genotype", x = NULL, -->
+<!--        y = "Score", fill = NULL) + -->
+<!--   geom_jitter(width = 0.05, alpha = 0.6) +  # add points -->
+<!--   theme_minimal() -->
+<!-- # Save the plot -->
+<!-- # ggsave("figures/hair_scores_boxplots_scaled.tiff", plot = p, width = 10, height = 5, dpi = 300) -->
+<!-- p -->
+<!-- ``` -->
+
+```{r, fig.height=3.1, fig.width=2}
+# Custom labels for ZIP data
+custom_labels <- c(
+  "ZIPgfp_+_+" = TeX("+/+"),
+  "ZIPgfp_dv5_dv5" = TeX("$\\textit{Gli}^{dv5}/\\textit{Gli}^{dv5}$")
+)
+
+# Set seed for reproducibility
+set.seed(2)
+
+# Plot
+p <- ggplot(zip_quant_data, aes(x = Genotype, y = score)) +
+  geom_jitter(width = 0.05, alpha = 0.6) +  # jittered points
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, color = "black",
+               position = position_dodge(width = 1.0)) +  # mean marker
+  labs(title = "Zip Scores by Genotype", x = NULL, y = "Zip center/periphery") +
+  geom_hline(yintercept = 1, linetype = "dotted", color = "black") +  # dotted line at y = 1
+  scale_x_discrete(labels = custom_labels) +
+  scale_y_continuous(
+    breaks = seq(0.0, 2, by = 0.5), # Setting breaks for every unit
+    labels = seq(0.0, 2, by = 0.5),  # Corresponding labels for the breaks
+    minor_breaks = NULL,
+    limits = c(0.0, 2)
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))
+
+# Optional: Save the plot
+# ggsave("figures/zip_scores.tiff", plot = p, width = 7, height = 3, dpi = 300)
+# ggsave("figures/zip_scores.svg", plot = p, device="svg", width = 2, height = 3.1, dpi = 300)
+
+p
+```
+
+
+The plot above shows the distribution of the scores in each genotype category. The black points show the actual values and X shows the mean score for that genotype. The plot above shows that there appears to be a difference in the means for each genotype's score values. We investigate if these differences are statistically significant in the next section using an ANOVA test.
+
+## Analysis
+
+### Check Welch's t-test assumptions
+We begin by first checking Welch's t-test assumptions. The plots and analyses below show that the variances of the score values for each genotype are roughly equal. Finally, since the cells were sampled randomly from different fruitflies, the samples in each genotype group are independent of the samples from the other genotype groups and mean of all cells from one fruitfly is independent from the mean of the cells from the other fruitflies within the same genotype group.
+```{r, fig.height=4, fig.width=5}
+ttest_model <- t.test(score ~ Genotype, data = zip_quant_data)
+
+bartlett.test(score ~ Genotype, data = zip_quant_data)
+```
+### The t-test model analysis
+```{r}
+ttest_model
+```
+
+The t-test shows that there is a statistically significant difference (at the 0.05 level of significance) between the mean of the score values across the 2 genotypes for the ZIP.
+
+
+
+
+
+
+
+
