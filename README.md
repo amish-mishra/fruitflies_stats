@@ -1,4 +1,4 @@
-# Fruit Fly Wing Hair Genetics: Data & Analysis
+# Statistical Analyses of Wing Hair Alignment
 
 Welcome to the repository for data, code, and statistical analyses supporting the study of gene effects on wing hairs of fruitflies. This work supplements the manuscript titled **"A role for Myo-II zipper and spaghetti squash in Gliotactin-dependent Drosophila melanogaster wing hair planar cell polarity"** (title subject to change during peer review).
 
